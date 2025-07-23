@@ -3,3 +3,4 @@ gunicorn
 flask_cors
 stripe
 dotenv
+jsonify
