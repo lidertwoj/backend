@@ -1,13 +1,12 @@
 import os
 import tempfile
+import time
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import stripe
 from dotenv import load_dotenv
 import requests
 import base64
-import time
-from datetime import datetime
 
 # Load environment variables
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
@@ -202,25 +201,20 @@ def create_customer_portal_by_email():
         return jsonify({"error": str(e)}), 500
 
 
-
 # Define the get_timestamp function
 def get_timestamp():
     """Return current timestamp as integer"""
-    try:
-        return int(time.time())
-    except:
-        return int(datetime.now().timestamp())
+    return int(time.time())
 
 @app.route('/api/optimize-cv', methods=['POST', 'OPTIONS'])
 def optimize_cv():
     print("Received optimize-cv request")
-    
     input_path = None
     try:
         if 'file' not in request.files:
             print("Error: No file in request")
             return jsonify({'error': 'No file uploaded'}), 400
-            
+        
         file = request.files['file']
         style = request.form.get('style', 'modern')
         filename = file.filename
@@ -235,47 +229,27 @@ def optimize_cv():
         
         print(f"Saved file to temporary location: {input_path}")
         
-        # Read the file content for base64 encoding
-        with open(input_path, 'rb') as f:
-            file_content = f.read()
+        # For binary mode, just return the file directly
+        # This avoids any base64 encoding/decoding issues
+        response = send_file(
+            input_path,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f'optimized-{filename}'
+        )
         
-        print(f"Read file content, size: {len(file_content)} bytes")
+        # Clean up the temporary file after sending
+        @response.call_on_close
+        def cleanup():
+            if input_path and os.path.exists(input_path):
+                os.remove(input_path)
+                print(f"Removed temporary file: {input_path}")
         
-        # Encode as base64
-        file_base64 = base64.b64encode(file_content).decode('utf-8')
-        
-        # Create timestamp for unique IDs
-        timestamp = get_timestamp()
-        print(f"Generated timestamp: {timestamp}")
-        
-        # Create mock file info
-        mock_file_info = {
-            'path': f'mock/optimize/{filename}',
-            'download_url': f'https://example.com/download/optimize/{filename}',
-            'sha': f'mock-sha-{timestamp}',
-            'size': len(file_content),
-            'firestore_doc_id': f'mock-doc-{timestamp}'
-        }
-        
-        print(f"Created mock file info")
-        
-        # Clean up the temporary file
-        if input_path and os.path.exists(input_path):
-            os.remove(input_path)
-            print(f"Removed temporary file: {input_path}")
-        
-        # Return JSON response with file data and info
-        response_data = {
-            'success': True,
-            'filename': f'optimized-{filename}',
-            'filedata': file_base64,
-            'fileInfo': mock_file_info
-        }
-        print("Sending successful response")
-        return jsonify(response_data)
+        return response
         
     except Exception as e:
         print(f"Error in optimize_cv: {str(e)}")
+        
         # Clean up if there was an error
         if input_path and os.path.exists(input_path):
             try:
@@ -283,19 +257,19 @@ def optimize_cv():
                 print(f"Removed temporary file after error: {input_path}")
             except:
                 pass
+        
         # Return error
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/generate-cv', methods=['POST', 'OPTIONS'])
 def generate_cv():
     print("Received generate-cv request")
-    
     input_path = None
     try:
         if 'file' not in request.files:
             print("Error: No file in request")
             return jsonify({'error': 'No file uploaded'}), 400
-            
+        
         file = request.files['file']
         template = request.form.get('template', 'modern')
         filename = file.filename
@@ -308,57 +282,44 @@ def generate_cv():
             file.save(temp_in.name)
             input_path = temp_in.name
         
-        # Read the file content for base64 encoding
-        with open(input_path, 'rb') as f:
-            file_content = f.read()
+        # For binary mode, just return the file directly
+        response = send_file(
+            input_path,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f'generated-{filename}'
+        )
         
-        # Encode as base64
-        file_base64 = base64.b64encode(file_content).decode('utf-8')
+        # Clean up the temporary file after sending
+        @response.call_on_close
+        def cleanup():
+            if input_path and os.path.exists(input_path):
+                os.remove(input_path)
+                print(f"Removed temporary file: {input_path}")
         
-        # Create timestamp for unique IDs
-        timestamp = get_timestamp()
-        
-        # Create mock file info
-        mock_file_info = {
-            'path': f'mock/generate/{filename}',
-            'download_url': f'https://example.com/download/generate/{filename}',
-            'sha': f'mock-sha-{timestamp}',
-            'size': len(file_content),
-            'firestore_doc_id': f'mock-doc-{timestamp}'
-        }
-        
-        # Clean up the temporary file
-        if input_path and os.path.exists(input_path):
-            os.remove(input_path)
-        
-        # Return JSON response with file data and info
-        return jsonify({
-            'success': True,
-            'filename': f'generated-{filename}',
-            'filedata': file_base64,
-            'fileInfo': mock_file_info
-        })
+        return response
         
     except Exception as e:
         print(f"Error in generate_cv: {str(e)}")
+        
         # Clean up if there was an error
         if input_path and os.path.exists(input_path):
             try:
                 os.remove(input_path)
             except:
                 pass
+        
         # Return error
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/translate-cv', methods=['POST', 'OPTIONS'])
 def translate_cv():
     print("Received translate-cv request")
-    
     input_path = None
     try:
         if 'file' not in request.files:
             return jsonify({'error': 'No file uploaded'}), 400
-            
+        
         file = request.files['file']
         language = request.form.get('language', 'en')
         filename = file.filename
@@ -369,45 +330,33 @@ def translate_cv():
             file.save(temp_in.name)
             input_path = temp_in.name
         
-        # Read the file content for base64 encoding
-        with open(input_path, 'rb') as f:
-            file_content = f.read()
+        # For binary mode, just return the file directly
+        response = send_file(
+            input_path,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f'translated-{filename}'
+        )
         
-        # Encode as base64
-        file_base64 = base64.b64encode(file_content).decode('utf-8')
+        # Clean up the temporary file after sending
+        @response.call_on_close
+        def cleanup():
+            if input_path and os.path.exists(input_path):
+                os.remove(input_path)
+                print(f"Removed temporary file: {input_path}")
         
-        # Create timestamp for unique IDs
-        timestamp = get_timestamp()
-        
-        # Create mock file info
-        mock_file_info = {
-            'path': f'mock/translate/{filename}',
-            'download_url': f'https://example.com/download/translate/{filename}',
-            'sha': f'mock-sha-{timestamp}',
-            'size': len(file_content),
-            'firestore_doc_id': f'mock-doc-{timestamp}'
-        }
-        
-        # Clean up the temporary file
-        if input_path and os.path.exists(input_path):
-            os.remove(input_path)
-        
-        # Return JSON response with file data and info
-        return jsonify({
-            'success': True,
-            'filename': f'translated-{filename}',
-            'filedata': file_base64,
-            'fileInfo': mock_file_info
-        })
+        return response
         
     except Exception as e:
         print(f"Error in translate_cv: {str(e)}")
+        
         # Clean up if there was an error
         if input_path and os.path.exists(input_path):
             try:
                 os.remove(input_path)
             except:
                 pass
+        
         # Return error
         return jsonify({'error': str(e)}), 500
 
