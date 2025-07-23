@@ -201,7 +201,15 @@ def create_customer_portal_by_email():
 
 
 
-@app.route('/api/optimize-cv', methods=['POST'])
+# Define the get_timestamp function
+def get_timestamp():
+    """Return current timestamp as integer"""
+    try:
+        return int(time.time())
+    except:
+        return int(datetime.now().timestamp())
+
+@app.route('/api/optimize-cv', methods=['POST', 'OPTIONS'])
 def optimize_cv():
     print("Received optimize-cv request")
     
@@ -236,6 +244,7 @@ def optimize_cv():
         
         # Create timestamp for unique IDs
         timestamp = get_timestamp()
+        print(f"Generated timestamp: {timestamp}")
         
         # Create mock file info
         mock_file_info = {
@@ -275,7 +284,7 @@ def optimize_cv():
         # Return error
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/generate-cv', methods=['POST'])
+@app.route('/api/generate-cv', methods=['POST', 'OPTIONS'])
 def generate_cv():
     print("Received generate-cv request")
     
@@ -339,7 +348,7 @@ def generate_cv():
         # Return error
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/translate-cv', methods=['POST'])
+@app.route('/api/translate-cv', methods=['POST', 'OPTIONS'])
 def translate_cv():
     print("Received translate-cv request")
     
@@ -400,7 +409,7 @@ def translate_cv():
         # Return error
         return jsonify({'error': str(e)}), 500
 
-@app.route('/process_pdf', methods=['POST'])
+@app.route('/process_pdf', methods=['POST', 'OPTIONS'])
 def process_pdf():
     print("Received process_pdf request")
     
