@@ -2,7 +2,6 @@ Flask
 gunicorn
 flask_cors
 stripe
-request
 base64
 jsonify 
 send_file
