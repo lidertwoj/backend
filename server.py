@@ -201,14 +201,9 @@ def create_customer_portal_by_email():
 
 
 
-@app.route('/api/optimize-cv', methods=['POST', 'OPTIONS'])
+@app.route('/api/optimize-cv', methods=['POST'])
 def optimize_cv():
-    if request.method == "OPTIONS":
-        return '', 200  # Preflight OK
-    
-    # For debugging
-    print(f"Received optimize-cv request with method: {request.method}")
-    print(f"Headers: {dict(request.headers)}")
+    print("Received optimize-cv request")
     
     input_path = None
     try:
@@ -240,7 +235,7 @@ def optimize_cv():
         file_base64 = base64.b64encode(file_content).decode('utf-8')
         
         # Create timestamp for unique IDs
-        timestamp = int(time.time())
+        timestamp = get_timestamp()
         
         # Create mock file info
         mock_file_info = {
@@ -251,7 +246,7 @@ def optimize_cv():
             'firestore_doc_id': f'mock-doc-{timestamp}'
         }
         
-        print(f"Created mock file info: {mock_file_info}")
+        print(f"Created mock file info")
         
         # Clean up the temporary file
         if input_path and os.path.exists(input_path):
@@ -272,24 +267,30 @@ def optimize_cv():
         print(f"Error in optimize_cv: {str(e)}")
         # Clean up if there was an error
         if input_path and os.path.exists(input_path):
-            os.remove(input_path)
-            print(f"Removed temporary file after error: {input_path}")
+            try:
+                os.remove(input_path)
+                print(f"Removed temporary file after error: {input_path}")
+            except:
+                pass
         # Return error
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/generate-cv', methods=['POST', 'OPTIONS'])
+@app.route('/api/generate-cv', methods=['POST'])
 def generate_cv():
-    if request.method == "OPTIONS":
-        return '', 200  # Preflight OK
-        
+    print("Received generate-cv request")
+    
+    input_path = None
     try:
         if 'file' not in request.files:
+            print("Error: No file in request")
             return jsonify({'error': 'No file uploaded'}), 400
             
         file = request.files['file']
         template = request.form.get('template', 'modern')
         filename = file.filename
         ext = os.path.splitext(filename)[1].lower()
+        
+        print(f"Processing file: {filename}, template: {template}")
         
         # Save file to temporary location
         with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_in:
@@ -303,17 +304,21 @@ def generate_cv():
         # Encode as base64
         file_base64 = base64.b64encode(file_content).decode('utf-8')
         
+        # Create timestamp for unique IDs
+        timestamp = get_timestamp()
+        
         # Create mock file info
         mock_file_info = {
             'path': f'mock/generate/{filename}',
             'download_url': f'https://example.com/download/generate/{filename}',
-            'sha': f'mock-sha-{int(time.time())}',
+            'sha': f'mock-sha-{timestamp}',
             'size': len(file_content),
-            'firestore_doc_id': f'mock-doc-{int(time.time())}'
+            'firestore_doc_id': f'mock-doc-{timestamp}'
         }
         
         # Clean up the temporary file
-        os.remove(input_path)
+        if input_path and os.path.exists(input_path):
+            os.remove(input_path)
         
         # Return JSON response with file data and info
         return jsonify({
@@ -324,14 +329,21 @@ def generate_cv():
         })
         
     except Exception as e:
+        print(f"Error in generate_cv: {str(e)}")
+        # Clean up if there was an error
+        if input_path and os.path.exists(input_path):
+            try:
+                os.remove(input_path)
+            except:
+                pass
         # Return error
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/translate-cv', methods=['POST', 'OPTIONS'])
+@app.route('/api/translate-cv', methods=['POST'])
 def translate_cv():
-    if request.method == "OPTIONS":
-        return '', 200  # Preflight OK
-        
+    print("Received translate-cv request")
+    
+    input_path = None
     try:
         if 'file' not in request.files:
             return jsonify({'error': 'No file uploaded'}), 400
@@ -353,17 +365,21 @@ def translate_cv():
         # Encode as base64
         file_base64 = base64.b64encode(file_content).decode('utf-8')
         
+        # Create timestamp for unique IDs
+        timestamp = get_timestamp()
+        
         # Create mock file info
         mock_file_info = {
             'path': f'mock/translate/{filename}',
             'download_url': f'https://example.com/download/translate/{filename}',
-            'sha': f'mock-sha-{int(time.time())}',
+            'sha': f'mock-sha-{timestamp}',
             'size': len(file_content),
-            'firestore_doc_id': f'mock-doc-{int(time.time())}'
+            'firestore_doc_id': f'mock-doc-{timestamp}'
         }
         
         # Clean up the temporary file
-        os.remove(input_path)
+        if input_path and os.path.exists(input_path):
+            os.remove(input_path)
         
         # Return JSON response with file data and info
         return jsonify({
@@ -374,17 +390,19 @@ def translate_cv():
         })
         
     except Exception as e:
+        print(f"Error in translate_cv: {str(e)}")
+        # Clean up if there was an error
+        if input_path and os.path.exists(input_path):
+            try:
+                os.remove(input_path)
+            except:
+                pass
         # Return error
         return jsonify({'error': str(e)}), 500
 
-@app.route('/process_pdf', methods=['POST', 'OPTIONS'])
+@app.route('/process_pdf', methods=['POST'])
 def process_pdf():
-    if request.method == "OPTIONS":
-        return '', 200  # Preflight OK
-    
-    # For debugging
-    print(f"Received process_pdf request with method: {request.method}")
-    print(f"Headers: {dict(request.headers)}")
+    print("Received process_pdf request")
     
     try:
         # Get JSON data from request
@@ -417,7 +435,7 @@ def process_pdf():
             return jsonify({'error': f'Invalid base64 encoding: {str(e)}'}), 400
         
         # Create timestamp for unique IDs
-        timestamp = int(time.time())
+        timestamp = get_timestamp()
         
         # Create mock file info
         mock_file_info = {
@@ -427,8 +445,6 @@ def process_pdf():
             'size': len(file_bytes),
             'firestore_doc_id': f'mock-doc-{timestamp}'
         }
-        
-        print(f"Created mock file info: {mock_file_info}")
         
         # Return mock response with file info
         response_data = {
@@ -442,6 +458,7 @@ def process_pdf():
     except Exception as e:
         print(f"Error processing PDF: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
 
 @app.route("/verify-session", methods=["POST", "OPTIONS"])
 def verify_session():
