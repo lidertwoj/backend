@@ -1,7 +1,6 @@
 Flask
 gunicorn
 flask_cors
-tempfile
 stripe
 load_dotenv
 request
