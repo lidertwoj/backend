@@ -2,7 +2,6 @@ Flask
 gunicorn
 flask_cors
 stripe
-load_dotenv
 request
 base64
 jsonify 
