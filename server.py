@@ -198,155 +198,183 @@ def create_customer_portal_by_email():
     except Exception as e:
         print(f"Error creating customer portal by email: {str(e)}")
         return jsonify({"error": str(e)}), 500
-    
+
+
+
 @app.route('/api/optimize-cv', methods=['POST', 'OPTIONS'])
 def optimize_cv():
     if request.method == "OPTIONS":
         return '', 200  # Preflight OK
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'}), 400
-    file = request.files['file']
-    style = request.form.get('style', 'modern')
-    filename = file.filename
-    ext = os.path.splitext(filename)[1].lower()
     
-    # Save file to temporary location
-    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_in:
-        file.save(temp_in.name)
-        input_path = temp_in.name
+    # For debugging
+    print(f"Received optimize-cv request with method: {request.method}")
+    print(f"Headers: {dict(request.headers)}")
     
+    input_path = None
     try:
-        # Read the file content
+        if 'file' not in request.files:
+            print("Error: No file in request")
+            return jsonify({'error': 'No file uploaded'}), 400
+            
+        file = request.files['file']
+        style = request.form.get('style', 'modern')
+        filename = file.filename
+        ext = os.path.splitext(filename)[1].lower()
+        
+        print(f"Processing file: {filename}, style: {style}")
+        
+        # Save file to temporary location
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_in:
+            file.save(temp_in.name)
+            input_path = temp_in.name
+        
+        print(f"Saved file to temporary location: {input_path}")
+        
+        # Read the file content for base64 encoding
         with open(input_path, 'rb') as f:
             file_content = f.read()
+        
+        print(f"Read file content, size: {len(file_content)} bytes")
+        
+        # Encode as base64
+        file_base64 = base64.b64encode(file_content).decode('utf-8')
+        
+        # Create timestamp for unique IDs
+        timestamp = int(time.time())
         
         # Create mock file info
         mock_file_info = {
             'path': f'mock/optimize/{filename}',
-            'download_url': f'https://backend-9j6e.onrender.com/download/optimize/{filename}',
-            'sha': f'mock-sha-{int(time.time())}',
+            'download_url': f'https://example.com/download/optimize/{filename}',
+            'sha': f'mock-sha-{timestamp}',
             'size': len(file_content),
-            'firestore_doc_id': f'mock-doc-{int(time.time())}'
+            'firestore_doc_id': f'mock-doc-{timestamp}'
         }
         
-        # Return the file with proper headers
-        response = send_file(
-            input_path,
-            as_attachment=True,
-            download_name=f'optimized-{filename}',
-            mimetype='application/pdf' if ext == '.pdf' else 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        )
+        print(f"Created mock file info: {mock_file_info}")
         
-        # Add file info to response headers
-        response.headers['X-File-Info'] = base64.b64encode(
-            jsonify(mock_file_info).get_data()
-        ).decode('utf-8')
-        
-        return response
-    except Exception as e:
-        # Clean up if there was an error
-        if os.path.exists(input_path):
+        # Clean up the temporary file
+        if input_path and os.path.exists(input_path):
             os.remove(input_path)
+            print(f"Removed temporary file: {input_path}")
+        
+        # Return JSON response with file data and info
+        response_data = {
+            'success': True,
+            'filename': f'optimized-{filename}',
+            'filedata': file_base64,
+            'fileInfo': mock_file_info
+        }
+        print("Sending successful response")
+        return jsonify(response_data)
+        
+    except Exception as e:
+        print(f"Error in optimize_cv: {str(e)}")
+        # Clean up if there was an error
+        if input_path and os.path.exists(input_path):
+            os.remove(input_path)
+            print(f"Removed temporary file after error: {input_path}")
+        # Return error
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/generate-cv', methods=['POST', 'OPTIONS'])
 def generate_cv():
     if request.method == "OPTIONS":
         return '', 200  # Preflight OK
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'}), 400
-    file = request.files['file']
-    template = request.form.get('template', 'modern')
-    filename = file.filename
-    ext = os.path.splitext(filename)[1].lower()
-    
-    # Save file to temporary location
-    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_in:
-        file.save(temp_in.name)
-        input_path = temp_in.name
-    
+        
     try:
-        # Read the file content
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file uploaded'}), 400
+            
+        file = request.files['file']
+        template = request.form.get('template', 'modern')
+        filename = file.filename
+        ext = os.path.splitext(filename)[1].lower()
+        
+        # Save file to temporary location
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_in:
+            file.save(temp_in.name)
+            input_path = temp_in.name
+        
+        # Read the file content for base64 encoding
         with open(input_path, 'rb') as f:
             file_content = f.read()
+        
+        # Encode as base64
+        file_base64 = base64.b64encode(file_content).decode('utf-8')
         
         # Create mock file info
         mock_file_info = {
             'path': f'mock/generate/{filename}',
-            'download_url': f'https://backend-9j6e.onrender.com/download/generate/{filename}',
+            'download_url': f'https://example.com/download/generate/{filename}',
             'sha': f'mock-sha-{int(time.time())}',
             'size': len(file_content),
             'firestore_doc_id': f'mock-doc-{int(time.time())}'
         }
         
-        # Return the file with proper headers
-        response = send_file(
-            input_path,
-            as_attachment=True,
-            download_name=f'generated-{filename}',
-            mimetype='application/pdf' if ext == '.pdf' else 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        )
+        # Clean up the temporary file
+        os.remove(input_path)
         
-        # Add file info to response headers
-        response.headers['X-File-Info'] = base64.b64encode(
-            jsonify(mock_file_info).get_data()
-        ).decode('utf-8')
+        # Return JSON response with file data and info
+        return jsonify({
+            'success': True,
+            'filename': f'generated-{filename}',
+            'filedata': file_base64,
+            'fileInfo': mock_file_info
+        })
         
-        return response
     except Exception as e:
-        # Clean up if there was an error
-        if os.path.exists(input_path):
-            os.remove(input_path)
+        # Return error
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/translate-cv', methods=['POST', 'OPTIONS'])
 def translate_cv():
     if request.method == "OPTIONS":
         return '', 200  # Preflight OK
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'}), 400
-    file = request.files['file']
-    language = request.form.get('language', 'en')
-    filename = file.filename
-    ext = os.path.splitext(filename)[1].lower()
-    
-    # Save file to temporary location
-    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_in:
-        file.save(temp_in.name)
-        input_path = temp_in.name
-    
+        
     try:
-        # Read the file content
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file uploaded'}), 400
+            
+        file = request.files['file']
+        language = request.form.get('language', 'en')
+        filename = file.filename
+        ext = os.path.splitext(filename)[1].lower()
+        
+        # Save file to temporary location
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_in:
+            file.save(temp_in.name)
+            input_path = temp_in.name
+        
+        # Read the file content for base64 encoding
         with open(input_path, 'rb') as f:
             file_content = f.read()
+        
+        # Encode as base64
+        file_base64 = base64.b64encode(file_content).decode('utf-8')
         
         # Create mock file info
         mock_file_info = {
             'path': f'mock/translate/{filename}',
-            'download_url': f'https://backend-9j6e.onrender.com/download/translate/{filename}',
+            'download_url': f'https://example.com/download/translate/{filename}',
             'sha': f'mock-sha-{int(time.time())}',
             'size': len(file_content),
             'firestore_doc_id': f'mock-doc-{int(time.time())}'
         }
         
-        # Return the file with proper headers
-        response = send_file(
-            input_path,
-            as_attachment=True,
-            download_name=f'translated-{filename}',
-            mimetype='application/pdf' if ext == '.pdf' else 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        )
+        # Clean up the temporary file
+        os.remove(input_path)
         
-        # Add file info to response headers
-        response.headers['X-File-Info'] = base64.b64encode(
-            jsonify(mock_file_info).get_data()
-        ).decode('utf-8')
+        # Return JSON response with file data and info
+        return jsonify({
+            'success': True,
+            'filename': f'translated-{filename}',
+            'filedata': file_base64,
+            'fileInfo': mock_file_info
+        })
         
-        return response
     except Exception as e:
-        # Clean up if there was an error
-        if os.path.exists(input_path):
-            os.remove(input_path)
+        # Return error
         return jsonify({'error': str(e)}), 500
 
 @app.route('/process_pdf', methods=['POST', 'OPTIONS'])
@@ -354,20 +382,28 @@ def process_pdf():
     if request.method == "OPTIONS":
         return '', 200  # Preflight OK
     
-    # Get JSON data from request
-    data = request.get_json()
-    if not data or 'filedata' not in data or 'filename' not in data:
-        return jsonify({'error': 'Missing file data or filename'}), 400
+    # For debugging
+    print(f"Received process_pdf request with method: {request.method}")
+    print(f"Headers: {dict(request.headers)}")
     
     try:
+        # Get JSON data from request
+        data = request.get_json()
+        if not data:
+            print("Error: No JSON data in request")
+            return jsonify({'error': 'No JSON data in request'}), 400
+            
+        if 'filedata' not in data or 'filename' not in data:
+            print("Error: Missing required fields in request data")
+            return jsonify({'error': 'Missing file data or filename'}), 400
+        
         # Extract data from request
         filename = data['filename']
         file_content = data['filedata']
         operation = data.get('operation', 'optimize')  # Default to optimize
-        style = data.get('style', 'modern')  # For optimize
-        template = data.get('template', 'modern')  # For generate
-        language = data.get('language', 'en')  # For translate
         user_uid = data.get('userUID', 'mock-user')
+        
+        print(f"Processing file: {filename}, operation: {operation}, user: {user_uid}")
         
         # Decode base64 content
         try:
@@ -375,46 +411,34 @@ def process_pdf():
             if ',' in file_content:
                 file_content = file_content.split(',', 1)[1]
             file_bytes = base64.b64decode(file_content)
+            print(f"Successfully decoded base64 content, size: {len(file_bytes)} bytes")
         except Exception as e:
+            print(f"Error decoding base64: {str(e)}")
             return jsonify({'error': f'Invalid base64 encoding: {str(e)}'}), 400
         
-        # Get file extension
-        ext = os.path.splitext(filename)[1].lower()
-        if not ext:
-            ext = '.pdf'  # Default to PDF if no extension
-        
-        # Save to temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_in:
-            temp_in.write(file_bytes)
-            input_path = temp_in.name
-        
-        # Mock response - just return the same file
-        # Read the file
-        with open(input_path, 'rb') as f:
-            processed_content = f.read()
-        
-        # Encode as base64
-        processed_base64 = base64.b64encode(processed_content).decode('utf-8')
-        
-        # Clean up input file
-        os.remove(input_path)
+        # Create timestamp for unique IDs
+        timestamp = int(time.time())
         
         # Create mock file info
         mock_file_info = {
             'path': f'{user_uid}/{operation}/{filename}',
-            'download_url': f'https://backend-9j6e.onrender.com/download/{operation}/{filename}',
-            'sha': f'mock-sha-{int(time.time())}',
-            'size': len(processed_content),
-            'firestore_doc_id': f'mock-doc-{int(time.time())}'
+            'download_url': f'https://example.com/download/{operation}/{filename}',
+            'sha': f'mock-sha-{timestamp}',
+            'size': len(file_bytes),
+            'firestore_doc_id': f'mock-doc-{timestamp}'
         }
         
+        print(f"Created mock file info: {mock_file_info}")
+        
         # Return mock response with file info
-        return jsonify({
+        response_data = {
             'success': True,
             'filename': f"{operation}-{filename}",
-            'filedata': processed_base64,
+            'filedata': file_content,  # Return the same content
             'fileInfo': mock_file_info
-        })
+        }
+        print("Sending successful response")
+        return jsonify(response_data)
     except Exception as e:
         print(f"Error processing PDF: {str(e)}")
         return jsonify({'error': str(e)}), 500
