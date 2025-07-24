@@ -32,6 +32,21 @@ KIMI_TRANSLATE_ENDPOINT = os.environ.get('KIMI_TRANSLATE_ENDPOINT', 'https://api
 KIMI_GENERATE_ENDPOINT = os.environ.get('KIMI_GENERATE_ENDPOINT', 'https://api.moonshot.cn/v1/chat/completions')
 MOCK_MODE = os.environ.get('MOCK_MODE', 'true').lower() == 'true'  # Default to mock mode
 
+
+print(f"🚀 Backend starting...")
+print(f"📊 Mock Mode: {MOCK_MODE}")
+print(f"🔑 API Key: {'✅ Set' if KIMI_API_KEY else '❌ Not Set'}")
+if MOCK_MODE:
+    print("⚠️  Currently in MOCK MODE - returning original files")
+    print("💡 To enable AI processing:")
+    print("   1. Set KIMI_API_KEY environment variable")
+    print("   2. Set MOCK_MODE=false")
+    print("   3. Restart the backend")
+else:
+    print("🤖 AI processing enabled")
+
+
+
 @app.route("/create-checkout-session", methods=["POST", "OPTIONS"])
 def create_checkout_session():
     if request.method == "OPTIONS":
@@ -205,6 +220,7 @@ def get_timestamp():
     """Return current timestamp as integer"""
     return int(time.time())
 
+
 def create_mock_response(file_content, filename, operation, user_uid='mock-user'):
     """Create a mock response for testing without the AI API"""
     timestamp = get_timestamp()
@@ -218,12 +234,17 @@ def create_mock_response(file_content, filename, operation, user_uid='mock-user'
         'firestore_doc_id': f'mock-doc-{timestamp}'
     }
     
-    # Return mock response with file info
+    # For mock mode, we'll return the original file but with a clear indication
+    # that this is a mock response. In a real implementation, this would be
+    # the processed file from the AI API.
+    
     return {
         'success': True,
         'filename': f"{operation}-{filename}",
-        'filedata': file_content,  # Return the same content
-        'fileInfo': mock_file_info
+        'filedata': file_content,  # In mock mode, return original content
+        'fileInfo': mock_file_info,
+        'mock_mode': True,
+        'message': f'Mock {operation} completed - original file returned. Set MOCK_MODE=false and add KIMI_API_KEY for real AI processing.'
     }
 
 def call_moonshot_api(file_base64, filename, operation, parameters):
@@ -242,11 +263,93 @@ def call_moonshot_api(file_base64, filename, operation, parameters):
     
     # Create a prompt based on the operation
     if operation == 'optimize':
-        prompt = f"Please optimize this CV/resume for better presentation and formatting. Style: {parameters.get('style', 'modern')}"
-    elif operation == 'generate':
-        prompt = f"Please generate an improved version of this CV/resume using the {parameters.get('template', 'modern')} template"
+        style = parameters.get('style', 'modern')
+        prompt = f"""You are a professional CV/resume optimization expert. Please analyze and optimize this CV/resume with the following requirements:
+
+STYLE: {style}
+
+OPTIMIZATION TASKS:
+1. CONTENT OPTIMIZATION:
+   - Improve bullet points to be more impactful and quantified
+   - Enhance job descriptions with action verbs and achievements
+   - Optimize keywords for ATS (Applicant Tracking Systems)
+   - Remove redundant or weak content
+   - Strengthen professional summary/objective
+
+2. FORMATTING & STRUCTURE:
+   - Apply {style} design principles
+   - Improve visual hierarchy and readability
+   - Optimize spacing and layout
+   - Ensure consistent formatting throughout
+   - Make it more professional and modern
+
+3. LANGUAGE ENHANCEMENT:
+   - Use stronger, more professional language
+   - Fix any grammar or spelling issues
+   - Improve clarity and conciseness
+   - Use industry-appropriate terminology
+
+4. SPECIFIC STYLE GUIDELINES:
+   - Modern: Clean lines, minimal design, professional fonts, good white space
+   - Professional: Traditional layout, conservative colors, formal structure
+   - Creative: Unique design elements while maintaining readability
+   - Classic: Timeless format, standard sections, conservative approach
+
+Please return an optimized version that significantly improves the original CV while maintaining all factual information."""
+    # generateCV operation removed
     elif operation == 'translate':
-        prompt = f"Please translate this CV/resume to {parameters.get('language', 'English')}"
+        language = parameters.get('language', 'English')
+        language_map = {
+            'ar': 'Arabic',
+            'de': 'German', 
+            'en': 'English',
+            'es': 'Spanish',
+            'fr': 'French',
+            'it': 'Italian',
+            'ja': 'Japanese',
+            'pl': 'Polish',
+            'pt': 'Portuguese',
+            'ru': 'Russian',
+            'zh': 'Chinese'
+        }
+        target_language = language_map.get(language, language)
+        
+        prompt = f"""You are a professional CV/resume translator with expertise in career documents. Please translate this CV/resume to {target_language} with the following requirements:
+
+TARGET LANGUAGE: {target_language}
+
+TRANSLATION REQUIREMENTS:
+1. PROFESSIONAL ACCURACY:
+   - Translate all content accurately while maintaining professional tone
+   - Use appropriate business/career terminology in {target_language}
+   - Preserve the meaning and impact of achievements and responsibilities
+   - Maintain professional formatting and structure
+
+2. CULTURAL ADAPTATION:
+   - Adapt content to {target_language} professional standards and expectations
+   - Use culturally appropriate professional language
+   - Adjust job titles and descriptions to local market standards
+   - Consider regional business practices and terminology
+
+3. PRESERVE STRUCTURE:
+   - Keep the original formatting and layout
+   - Maintain bullet points, sections, and visual hierarchy
+   - Preserve dates, numbers, and proper nouns where appropriate
+   - Keep contact information format suitable for the target region
+
+4. QUALITY ASSURANCE:
+   - Ensure grammatically correct {target_language}
+   - Use professional vocabulary appropriate for CVs/resumes
+   - Maintain consistency in terminology throughout
+   - Preserve the professional impact and readability
+
+5. SPECIFIC CONSIDERATIONS:
+   - Translate section headers appropriately (Experience, Education, Skills, etc.)
+   - Adapt educational qualifications to local equivalents when possible
+   - Use proper {target_language} formatting for addresses and contact info
+   - Maintain professional tone throughout
+
+Please provide a complete, professionally translated CV that would be suitable for job applications in {target_language}-speaking regions."""
     else:
         prompt = "Please process this document"
     
@@ -351,53 +454,7 @@ def optimize_cv():
         print(f"Error in optimize_cv: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/generate-cv', methods=['POST', 'OPTIONS'])
-def generate_cv():
-    print("Received generate-cv request")
-    
-    try:
-        if 'file' not in request.files:
-            print("Error: No file in request")
-            return jsonify({'error': 'No file uploaded'}), 400
-        
-        file = request.files['file']
-        template = request.form.get('template', 'modern')
-        filename = file.filename
-        
-        print(f"Processing file: {filename}, template: {template}")
-        
-        # Read file content directly without saving
-        file_content = file.read()
-        
-        # Encode as base64
-        file_base64 = base64.b64encode(file_content).decode('utf-8')
-        
-        if MOCK_MODE or not KIMI_API_KEY:
-            print("Mock mode enabled or no API key, returning mock response")
-            response_data = create_mock_response(file_base64, filename, 'generate')
-        else:
-            # Forward to AI API
-            print(f"Calling Moonshot AI API for generation")
-            
-            try:
-                response_data = call_moonshot_api(
-                    file_base64, 
-                    filename, 
-                    'generate', 
-                    {'template': template}
-                )
-                print("Successfully received response from Moonshot AI")
-            except Exception as api_error:
-                print(f"Moonshot AI request failed: {str(api_error)}")
-                print("Falling back to mock response")
-                response_data = create_mock_response(file_base64, filename, 'generate')
-        
-        print("Sending successful response")
-        return jsonify(response_data)
-        
-    except Exception as e:
-        print(f"Error in generate_cv: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# generate_cv endpoint removed as it's no longer needed
 
 @app.route('/api/translate-cv', methods=['POST', 'OPTIONS'])
 def translate_cv():
@@ -446,7 +503,6 @@ def translate_cv():
     except Exception as e:
         print(f"Error in translate_cv: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
 
 @app.route("/verify-session", methods=["POST", "OPTIONS"])
 def verify_session():
@@ -875,7 +931,21 @@ def stripe_webhook():
 
 @app.route("/")
 def index():
-    return "Stripe backend is running!"
+    return f"""
+    <h1>CV AI Backend</h1>
+    <p><strong>Status:</strong> Running</p>
+    <p><strong>Mock Mode:</strong> {'✅ Enabled' if MOCK_MODE else '❌ Disabled'}</p>
+    <p><strong>API Key:</strong> {'✅ Set' if KIMI_API_KEY else '❌ Not Set'}</p>
+    
+    {'<p><em>⚠️ Currently in mock mode - returning original files without AI processing</em></p>' if MOCK_MODE else '<p><em>🤖 AI processing enabled</em></p>'}
+    
+    <h3>Endpoints:</h3>
+    <ul>
+        <li><a href="/status">/status</a> - Backend status</li>
+        <li>/api/optimize-cv - CV optimization</li>
+        <li>/api/translate-cv - CV translation</li>
+    </ul>
+    """
 
 @app.route("/status")
 def status():
@@ -886,17 +956,77 @@ def status():
         'api_key_preview': KIMI_API_KEY[:10] + '...' if KIMI_API_KEY else None,
         'endpoints': {
             'optimize': KIMI_OPTIMIZE_ENDPOINT,
-            'generate': KIMI_GENERATE_ENDPOINT,
             'translate': KIMI_TRANSLATE_ENDPOINT
         },
-        'note': 'Currently using Moonshot AI chat completions API. PDF processing is simulated.',
+        'note': 'Currently in mock mode - returning original files. Set MOCK_MODE=false for real AI processing.',
         'recommendations': [
-            'Run test_moonshot_api.py to verify correct endpoints',
-            'Set MOCK_MODE=false to enable real API calls',
-            'Ensure KIMI_API_KEY is set in environment variables'
+            'Set MOCK_MODE=false to enable real AI calls',
+            'Add KIMI_API_KEY environment variable with your Moonshot AI API key',
+            'Restart the backend after making changes'
         ]
     })
 
+@app.route("/enable-ai", methods=["POST"])
+def enable_ai():
+    """Endpoint to test enabling real AI processing"""
+    global MOCK_MODE
+    
+    data = request.get_json() or {}
+    api_key = data.get('api_key')
+    
+    if not api_key:
+        return jsonify({
+            'error': 'API key required',
+            'message': 'Please provide your Moonshot AI API key'
+        }), 400
+    
+    # Test the API key with a simple request
+    try:
+        headers = {
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json'
+        }
+        
+        test_payload = {
+            "model": "moonshot-v1-8k",
+            "messages": [
+                {"role": "user", "content": "Hello, this is a test message."}
+            ],
+            "temperature": 0.3,
+            "max_tokens": 50
+        }
+        
+        response = requests.post(
+            KIMI_OPTIMIZE_ENDPOINT,
+            headers=headers,
+            json=test_payload,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            # API key works, temporarily enable AI mode
+            global KIMI_API_KEY
+            KIMI_API_KEY = api_key
+            MOCK_MODE = False
+            
+            return jsonify({
+                'success': True,
+                'message': 'AI processing enabled successfully!',
+                'mock_mode': MOCK_MODE,
+                'note': 'This is temporary. To make it permanent, set KIMI_API_KEY and MOCK_MODE=false in your environment variables.'
+            })
+        else:
+            return jsonify({
+                'error': 'Invalid API key',
+                'message': f'API returned status {response.status_code}',
+                'details': response.text[:200]
+            }), 400
+            
+    except Exception as e:
+        return jsonify({
+            'error': 'API test failed',
+            'message': str(e)
+        }), 500
 
 @app.route("/test-response")
 def test_response():
@@ -913,8 +1043,6 @@ def test_response():
         'filedata_preview': mock_response.get('filedata', '')[:50] + '...' if mock_response.get('filedata') else None,
         'fileInfo_keys': list(mock_response.get('fileInfo', {}).keys()) if mock_response.get('fileInfo') else None
     })
-
-
 
 if __name__ == "__main__":
     app.run(port=4242, debug=True)
