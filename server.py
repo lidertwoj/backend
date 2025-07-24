@@ -206,10 +206,32 @@ def get_timestamp():
     """Return current timestamp as integer"""
     return int(time.time())
 
+
+def create_mock_response(file_content, filename, operation, user_uid='mock-user'):
+    """Create a mock response for testing without the AI API"""
+    timestamp = get_timestamp()
+    
+    # Create mock file info
+    mock_file_info = {
+        'path': f'{user_uid}/{operation}/{filename}',
+        'download_url': f'https://example.com/download/{operation}/{filename}',
+        'sha': f'mock-sha-{timestamp}',
+        'size': len(file_content),
+        'firestore_doc_id': f'mock-doc-{timestamp}'
+    }
+    
+    # Return mock response with file info
+    return {
+        'success': True,
+        'filename': f"{operation}-{filename}",
+        'filedata': file_content,  # Return the same content
+        'fileInfo': mock_file_info
+    }
+
 @app.route('/api/optimize-cv', methods=['POST', 'OPTIONS'])
 def optimize_cv():
     print("Received optimize-cv request")
-    input_path = None
+    
     try:
         if 'file' not in request.files:
             print("Error: No file in request")
@@ -218,53 +240,70 @@ def optimize_cv():
         file = request.files['file']
         style = request.form.get('style', 'modern')
         filename = file.filename
-        ext = os.path.splitext(filename)[1].lower()
         
         print(f"Processing file: {filename}, style: {style}")
         
-        # Save file to temporary location
-        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_in:
-            file.save(temp_in.name)
-            input_path = temp_in.name
+        # Read file content directly without saving
+        file_content = file.read()
         
-        print(f"Saved file to temporary location: {input_path}")
+        # Encode as base64
+        file_base64 = base64.b64encode(file_content).decode('utf-8')
         
-        # For binary mode, just return the file directly
-        # This avoids any base64 encoding/decoding issues
-        response = send_file(
-            input_path,
-            mimetype='application/pdf',
-            as_attachment=True,
-            download_name=f'optimized-{filename}'
-        )
+        if MOCK_MODE:
+            print("Mock mode enabled, returning mock response")
+            response_data = create_mock_response(file_base64, filename, 'optimize')
+        else:
+            # Forward to AI API
+            print(f"Forwarding to AI API: {KIMI_OPTIMIZE_ENDPOINT}")
+            
+            # Prepare API request
+            headers = {
+                'Authorization': f'Bearer {KIMI_API_KEY}',
+                'Content-Type': 'application/json'
+            }
+            
+            payload = {
+                'file': file_base64,
+                'filename': filename,
+                'style': style
+            }
+            
+            # Make API request
+            api_response = requests.post(
+                KIMI_OPTIMIZE_ENDPOINT,
+                headers=headers,
+                json=payload
+            )
+            
+            if api_response.status_code != 200:
+                print(f"API error: {api_response.status_code} {api_response.text}")
+                return jsonify({'error': f'API error: {api_response.status_code}'}), 500
+            
+            # Get response data
+            response_data = api_response.json()
+            
+            # If API doesn't return fileInfo, create it
+            if 'fileInfo' not in response_data:
+                timestamp = get_timestamp()
+                response_data['fileInfo'] = {
+                    'path': f'api/{timestamp}/{filename}',
+                    'download_url': f'data:application/pdf;base64,{response_data.get("filedata", file_base64)}',
+                    'sha': f'api-sha-{timestamp}',
+                    'size': len(response_data.get("filedata", file_base64)),
+                    'firestore_doc_id': f'api-doc-{timestamp}'
+                }
         
-        # Clean up the temporary file after sending
-        @response.call_on_close
-        def cleanup():
-            if input_path and os.path.exists(input_path):
-                os.remove(input_path)
-                print(f"Removed temporary file: {input_path}")
-        
-        return response
+        print("Sending successful response")
+        return jsonify(response_data)
         
     except Exception as e:
         print(f"Error in optimize_cv: {str(e)}")
-        
-        # Clean up if there was an error
-        if input_path and os.path.exists(input_path):
-            try:
-                os.remove(input_path)
-                print(f"Removed temporary file after error: {input_path}")
-            except:
-                pass
-        
-        # Return error
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/generate-cv', methods=['POST', 'OPTIONS'])
 def generate_cv():
     print("Received generate-cv request")
-    input_path = None
+    
     try:
         if 'file' not in request.files:
             print("Error: No file in request")
@@ -273,92 +312,138 @@ def generate_cv():
         file = request.files['file']
         template = request.form.get('template', 'modern')
         filename = file.filename
-        ext = os.path.splitext(filename)[1].lower()
         
         print(f"Processing file: {filename}, template: {template}")
         
-        # Save file to temporary location
-        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_in:
-            file.save(temp_in.name)
-            input_path = temp_in.name
+        # Read file content directly without saving
+        file_content = file.read()
         
-        # For binary mode, just return the file directly
-        response = send_file(
-            input_path,
-            mimetype='application/pdf',
-            as_attachment=True,
-            download_name=f'generated-{filename}'
-        )
+        # Encode as base64
+        file_base64 = base64.b64encode(file_content).decode('utf-8')
         
-        # Clean up the temporary file after sending
-        @response.call_on_close
-        def cleanup():
-            if input_path and os.path.exists(input_path):
-                os.remove(input_path)
-                print(f"Removed temporary file: {input_path}")
+        if MOCK_MODE:
+            print("Mock mode enabled, returning mock response")
+            response_data = create_mock_response(file_base64, filename, 'generate')
+        else:
+            # Forward to AI API
+            print(f"Forwarding to AI API: {KIMI_GENERATE_ENDPOINT}")
+            
+            # Prepare API request
+            headers = {
+                'Authorization': f'Bearer {KIMI_API_KEY}',
+                'Content-Type': 'application/json'
+            }
+            
+            payload = {
+                'file': file_base64,
+                'filename': filename,
+                'template': template
+            }
+            
+            # Make API request
+            api_response = requests.post(
+                KIMI_GENERATE_ENDPOINT,
+                headers=headers,
+                json=payload
+            )
+            
+            if api_response.status_code != 200:
+                print(f"API error: {api_response.status_code} {api_response.text}")
+                return jsonify({'error': f'API error: {api_response.status_code}'}), 500
+            
+            # Get response data
+            response_data = api_response.json()
+            
+            # If API doesn't return fileInfo, create it
+            if 'fileInfo' not in response_data:
+                timestamp = get_timestamp()
+                response_data['fileInfo'] = {
+                    'path': f'api/{timestamp}/{filename}',
+                    'download_url': f'data:application/pdf;base64,{response_data.get("filedata", file_base64)}',
+                    'sha': f'api-sha-{timestamp}',
+                    'size': len(response_data.get("filedata", file_base64)),
+                    'firestore_doc_id': f'api-doc-{timestamp}'
+                }
         
-        return response
+        print("Sending successful response")
+        return jsonify(response_data)
         
     except Exception as e:
         print(f"Error in generate_cv: {str(e)}")
-        
-        # Clean up if there was an error
-        if input_path and os.path.exists(input_path):
-            try:
-                os.remove(input_path)
-            except:
-                pass
-        
-        # Return error
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/translate-cv', methods=['POST', 'OPTIONS'])
 def translate_cv():
     print("Received translate-cv request")
-    input_path = None
+    
     try:
         if 'file' not in request.files:
+            print("Error: No file in request")
             return jsonify({'error': 'No file uploaded'}), 400
         
         file = request.files['file']
         language = request.form.get('language', 'en')
         filename = file.filename
-        ext = os.path.splitext(filename)[1].lower()
         
-        # Save file to temporary location
-        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_in:
-            file.save(temp_in.name)
-            input_path = temp_in.name
+        print(f"Processing file: {filename}, language: {language}")
         
-        # For binary mode, just return the file directly
-        response = send_file(
-            input_path,
-            mimetype='application/pdf',
-            as_attachment=True,
-            download_name=f'translated-{filename}'
-        )
+        # Read file content directly without saving
+        file_content = file.read()
         
-        # Clean up the temporary file after sending
-        @response.call_on_close
-        def cleanup():
-            if input_path and os.path.exists(input_path):
-                os.remove(input_path)
-                print(f"Removed temporary file: {input_path}")
+        # Encode as base64
+        file_base64 = base64.b64encode(file_content).decode('utf-8')
         
-        return response
+        if MOCK_MODE:
+            print("Mock mode enabled, returning mock response")
+            response_data = create_mock_response(file_base64, filename, 'translate')
+        else:
+            # Forward to AI API
+            print(f"Forwarding to AI API: {KIMI_TRANSLATE_ENDPOINT}")
+            
+            # Prepare API request
+            headers = {
+                'Authorization': f'Bearer {KIMI_API_KEY}',
+                'Content-Type': 'application/json'
+            }
+            
+            payload = {
+                'file': file_base64,
+                'filename': filename,
+                'language': language
+            }
+            
+            # Make API request
+            api_response = requests.post(
+                KIMI_TRANSLATE_ENDPOINT,
+                headers=headers,
+                json=payload
+            )
+            
+            if api_response.status_code != 200:
+                print(f"API error: {api_response.status_code} {api_response.text}")
+                return jsonify({'error': f'API error: {api_response.status_code}'}), 500
+            
+            # Get response data
+            response_data = api_response.json()
+            
+            # If API doesn't return fileInfo, create it
+            if 'fileInfo' not in response_data:
+                timestamp = get_timestamp()
+                response_data['fileInfo'] = {
+                    'path': f'api/{timestamp}/{filename}',
+                    'download_url': f'data:application/pdf;base64,{response_data.get("filedata", file_base64)}',
+                    'sha': f'api-sha-{timestamp}',
+                    'size': len(response_data.get("filedata", file_base64)),
+                    'firestore_doc_id': f'api-doc-{timestamp}'
+                }
+        
+        print("Sending successful response")
+        return jsonify(response_data)
         
     except Exception as e:
         print(f"Error in translate_cv: {str(e)}")
-        
-        # Clean up if there was an error
-        if input_path and os.path.exists(input_path):
-            try:
-                os.remove(input_path)
-            except:
-                pass
-        
-        # Return error
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/process_pdf', methods=['POST', 'OPTIONS'])
 def process_pdf():
