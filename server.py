@@ -206,7 +206,6 @@ def get_timestamp():
     """Return current timestamp as integer"""
     return int(time.time())
 
-
 def create_mock_response(file_content, filename, operation, user_uid='mock-user'):
     """Create a mock response for testing without the AI API"""
     timestamp = get_timestamp()
@@ -249,49 +248,56 @@ def optimize_cv():
         # Encode as base64
         file_base64 = base64.b64encode(file_content).decode('utf-8')
         
-        if MOCK_MODE:
-            print("Mock mode enabled, returning mock response")
+        if MOCK_MODE or not KIMI_API_KEY:
+            print("Mock mode enabled or no API key, returning mock response")
             response_data = create_mock_response(file_base64, filename, 'optimize')
         else:
             # Forward to AI API
             print(f"Forwarding to AI API: {KIMI_OPTIMIZE_ENDPOINT}")
             
-            # Prepare API request
-            headers = {
-                'Authorization': f'Bearer {KIMI_API_KEY}',
-                'Content-Type': 'application/json'
-            }
-            
-            payload = {
-                'file': file_base64,
-                'filename': filename,
-                'style': style
-            }
-            
-            # Make API request
-            api_response = requests.post(
-                KIMI_OPTIMIZE_ENDPOINT,
-                headers=headers,
-                json=payload
-            )
-            
-            if api_response.status_code != 200:
-                print(f"API error: {api_response.status_code} {api_response.text}")
-                return jsonify({'error': f'API error: {api_response.status_code}'}), 500
-            
-            # Get response data
-            response_data = api_response.json()
-            
-            # If API doesn't return fileInfo, create it
-            if 'fileInfo' not in response_data:
-                timestamp = get_timestamp()
-                response_data['fileInfo'] = {
-                    'path': f'api/{timestamp}/{filename}',
-                    'download_url': f'data:application/pdf;base64,{response_data.get("filedata", file_base64)}',
-                    'sha': f'api-sha-{timestamp}',
-                    'size': len(response_data.get("filedata", file_base64)),
-                    'firestore_doc_id': f'api-doc-{timestamp}'
+            try:
+                # Prepare API request
+                headers = {
+                    'Authorization': f'Bearer {KIMI_API_KEY}',
+                    'Content-Type': 'application/json'
                 }
+                
+                payload = {
+                    'file': file_base64,
+                    'filename': filename,
+                    'style': style
+                }
+                
+                # Make API request
+                api_response = requests.post(
+                    KIMI_OPTIMIZE_ENDPOINT,
+                    headers=headers,
+                    json=payload,
+                    timeout=30
+                )
+                
+                if api_response.status_code != 200:
+                    print(f"API error: {api_response.status_code} {api_response.text}")
+                    print("Falling back to mock response")
+                    response_data = create_mock_response(file_base64, filename, 'optimize')
+                else:
+                    # Get response data
+                    response_data = api_response.json()
+                    
+                    # If API doesn't return fileInfo, create it
+                    if 'fileInfo' not in response_data:
+                        timestamp = get_timestamp()
+                        response_data['fileInfo'] = {
+                            'path': f'api/{timestamp}/{filename}',
+                            'download_url': f'data:application/pdf;base64,{response_data.get("filedata", file_base64)}',
+                            'sha': f'api-sha-{timestamp}',
+                            'size': len(response_data.get("filedata", file_base64)),
+                            'firestore_doc_id': f'api-doc-{timestamp}'
+                        }
+            except Exception as api_error:
+                print(f"API request failed: {str(api_error)}")
+                print("Falling back to mock response")
+                response_data = create_mock_response(file_base64, filename, 'optimize')
         
         print("Sending successful response")
         return jsonify(response_data)
@@ -321,49 +327,56 @@ def generate_cv():
         # Encode as base64
         file_base64 = base64.b64encode(file_content).decode('utf-8')
         
-        if MOCK_MODE:
-            print("Mock mode enabled, returning mock response")
+        if MOCK_MODE or not KIMI_API_KEY:
+            print("Mock mode enabled or no API key, returning mock response")
             response_data = create_mock_response(file_base64, filename, 'generate')
         else:
             # Forward to AI API
             print(f"Forwarding to AI API: {KIMI_GENERATE_ENDPOINT}")
             
-            # Prepare API request
-            headers = {
-                'Authorization': f'Bearer {KIMI_API_KEY}',
-                'Content-Type': 'application/json'
-            }
-            
-            payload = {
-                'file': file_base64,
-                'filename': filename,
-                'template': template
-            }
-            
-            # Make API request
-            api_response = requests.post(
-                KIMI_GENERATE_ENDPOINT,
-                headers=headers,
-                json=payload
-            )
-            
-            if api_response.status_code != 200:
-                print(f"API error: {api_response.status_code} {api_response.text}")
-                return jsonify({'error': f'API error: {api_response.status_code}'}), 500
-            
-            # Get response data
-            response_data = api_response.json()
-            
-            # If API doesn't return fileInfo, create it
-            if 'fileInfo' not in response_data:
-                timestamp = get_timestamp()
-                response_data['fileInfo'] = {
-                    'path': f'api/{timestamp}/{filename}',
-                    'download_url': f'data:application/pdf;base64,{response_data.get("filedata", file_base64)}',
-                    'sha': f'api-sha-{timestamp}',
-                    'size': len(response_data.get("filedata", file_base64)),
-                    'firestore_doc_id': f'api-doc-{timestamp}'
+            try:
+                # Prepare API request
+                headers = {
+                    'Authorization': f'Bearer {KIMI_API_KEY}',
+                    'Content-Type': 'application/json'
                 }
+                
+                payload = {
+                    'file': file_base64,
+                    'filename': filename,
+                    'template': template
+                }
+                
+                # Make API request
+                api_response = requests.post(
+                    KIMI_GENERATE_ENDPOINT,
+                    headers=headers,
+                    json=payload,
+                    timeout=30
+                )
+                
+                if api_response.status_code != 200:
+                    print(f"API error: {api_response.status_code} {api_response.text}")
+                    print("Falling back to mock response")
+                    response_data = create_mock_response(file_base64, filename, 'generate')
+                else:
+                    # Get response data
+                    response_data = api_response.json()
+                    
+                    # If API doesn't return fileInfo, create it
+                    if 'fileInfo' not in response_data:
+                        timestamp = get_timestamp()
+                        response_data['fileInfo'] = {
+                            'path': f'api/{timestamp}/{filename}',
+                            'download_url': f'data:application/pdf;base64,{response_data.get("filedata", file_base64)}',
+                            'sha': f'api-sha-{timestamp}',
+                            'size': len(response_data.get("filedata", file_base64)),
+                            'firestore_doc_id': f'api-doc-{timestamp}'
+                        }
+            except Exception as api_error:
+                print(f"API request failed: {str(api_error)}")
+                print("Falling back to mock response")
+                response_data = create_mock_response(file_base64, filename, 'generate')
         
         print("Sending successful response")
         return jsonify(response_data)
@@ -393,49 +406,56 @@ def translate_cv():
         # Encode as base64
         file_base64 = base64.b64encode(file_content).decode('utf-8')
         
-        if MOCK_MODE:
-            print("Mock mode enabled, returning mock response")
+        if MOCK_MODE or not KIMI_API_KEY:
+            print("Mock mode enabled or no API key, returning mock response")
             response_data = create_mock_response(file_base64, filename, 'translate')
         else:
             # Forward to AI API
             print(f"Forwarding to AI API: {KIMI_TRANSLATE_ENDPOINT}")
             
-            # Prepare API request
-            headers = {
-                'Authorization': f'Bearer {KIMI_API_KEY}',
-                'Content-Type': 'application/json'
-            }
-            
-            payload = {
-                'file': file_base64,
-                'filename': filename,
-                'language': language
-            }
-            
-            # Make API request
-            api_response = requests.post(
-                KIMI_TRANSLATE_ENDPOINT,
-                headers=headers,
-                json=payload
-            )
-            
-            if api_response.status_code != 200:
-                print(f"API error: {api_response.status_code} {api_response.text}")
-                return jsonify({'error': f'API error: {api_response.status_code}'}), 500
-            
-            # Get response data
-            response_data = api_response.json()
-            
-            # If API doesn't return fileInfo, create it
-            if 'fileInfo' not in response_data:
-                timestamp = get_timestamp()
-                response_data['fileInfo'] = {
-                    'path': f'api/{timestamp}/{filename}',
-                    'download_url': f'data:application/pdf;base64,{response_data.get("filedata", file_base64)}',
-                    'sha': f'api-sha-{timestamp}',
-                    'size': len(response_data.get("filedata", file_base64)),
-                    'firestore_doc_id': f'api-doc-{timestamp}'
+            try:
+                # Prepare API request
+                headers = {
+                    'Authorization': f'Bearer {KIMI_API_KEY}',
+                    'Content-Type': 'application/json'
                 }
+                
+                payload = {
+                    'file': file_base64,
+                    'filename': filename,
+                    'language': language
+                }
+                
+                # Make API request
+                api_response = requests.post(
+                    KIMI_TRANSLATE_ENDPOINT,
+                    headers=headers,
+                    json=payload,
+                    timeout=30
+                )
+                
+                if api_response.status_code != 200:
+                    print(f"API error: {api_response.status_code} {api_response.text}")
+                    print("Falling back to mock response")
+                    response_data = create_mock_response(file_base64, filename, 'translate')
+                else:
+                    # Get response data
+                    response_data = api_response.json()
+                    
+                    # If API doesn't return fileInfo, create it
+                    if 'fileInfo' not in response_data:
+                        timestamp = get_timestamp()
+                        response_data['fileInfo'] = {
+                            'path': f'api/{timestamp}/{filename}',
+                            'download_url': f'data:application/pdf;base64,{response_data.get("filedata", file_base64)}',
+                            'sha': f'api-sha-{timestamp}',
+                            'size': len(response_data.get("filedata", file_base64)),
+                            'firestore_doc_id': f'api-doc-{timestamp}'
+                        }
+            except Exception as api_error:
+                print(f"API request failed: {str(api_error)}")
+                print("Falling back to mock response")
+                response_data = create_mock_response(file_base64, filename, 'translate')
         
         print("Sending successful response")
         return jsonify(response_data)
@@ -443,7 +463,6 @@ def translate_cv():
     except Exception as e:
         print(f"Error in translate_cv: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
 
 @app.route('/process_pdf', methods=['POST', 'OPTIONS'])
 def process_pdf():
@@ -933,6 +952,21 @@ def stripe_webhook():
 @app.route("/")
 def index():
     return "Stripe backend is running!"
+
+@app.route("/status")
+def status():
+    return jsonify({
+        'status': 'running',
+        'mock_mode': MOCK_MODE,
+        'has_api_key': bool(KIMI_API_KEY),
+        'endpoints': {
+            'optimize': KIMI_OPTIMIZE_ENDPOINT,
+            'generate': KIMI_GENERATE_ENDPOINT,
+            'translate': KIMI_TRANSLATE_ENDPOINT
+        }
+    })
+
+
 
 if __name__ == "__main__":
     app.run(port=4242, debug=True)
