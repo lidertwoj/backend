@@ -231,7 +231,8 @@ def create_mock_response(file_content, filename, operation, user_uid='mock-user'
         'download_url': f'https://example.com/download/{operation}/{filename}',
         'sha': f'mock-sha-{timestamp}',
         'size': len(file_content),
-        'firestore_doc_id': f'mock-doc-{timestamp}'
+        'firestore_doc_id': f'mock-doc-{timestamp}',
+        'mock_mode': True  # Add mock_mode flag to fileInfo as well
     }
     
     # For mock mode, we'll return the original file but with a clear indication
