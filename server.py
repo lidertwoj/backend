@@ -205,7 +205,6 @@ def get_timestamp():
     """Return current timestamp as integer"""
     return int(time.time())
 
-
 def create_mock_response(file_content, filename, operation, user_uid='mock-user'):
     """Create a mock response for testing without the AI API"""
     timestamp = get_timestamp()
@@ -896,6 +895,23 @@ def status():
             'Set MOCK_MODE=false to enable real API calls',
             'Ensure KIMI_API_KEY is set in environment variables'
         ]
+    })
+
+
+@app.route("/test-response")
+def test_response():
+    """Test endpoint to verify response format"""
+    # Create a simple base64 encoded test content
+    test_content = "JVBERi0xLjQKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoKMiAwIG9iago8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PgplbmRvYmoKMyAwIG9iago8PC9UeXBlL1BhZ2UvTWVkaWFCb3hbMCAwIDYxMiA3OTJdL1BhcmVudCAyIDAgUi9SZXNvdXJjZXM8PD4+Pj4KZW5kb2JqCnhyZWYKMCA0CjAwMDAwMDAwMDAgNjU1MzUgZgowMDAwMDAwMDEwIDAwMDAwIG4KMDAwMDAwMDA1MyAwMDAwMCBuCjAwMDAwMDAxMDIgMDAwMDAgbgp0cmFpbGVyCjw8L1NpemUgNC9Sb290IDEgMCBSPj4Kc3RhcnR4cmVmCjE3OAolJUVPRgo="
+    
+    mock_response = create_mock_response(test_content, "test.pdf", "test")
+    
+    return jsonify({
+        'test_response': mock_response,
+        'response_keys': list(mock_response.keys()),
+        'filedata_length': len(mock_response.get('filedata', '')),
+        'filedata_preview': mock_response.get('filedata', '')[:50] + '...' if mock_response.get('filedata') else None,
+        'fileInfo_keys': list(mock_response.get('fileInfo', {}).keys()) if mock_response.get('fileInfo') else None
     })
 
 
