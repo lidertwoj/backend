@@ -26,12 +26,11 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 PRICE_WEEKLY = "price_1Rlm3I7f2nbXiM5KRNNvniuW"
 PRICE_YEARLY = "price_1Rlm6a7f2nbXiM5KqNWebhNO"
 KIMI_API_KEY = os.environ.get('KIMI_API_KEY')
-KIMI_OPTIMIZE_ENDPOINT = 'https://api.moonshot.ai/v1/cv/optimize'
-KIMI_TRANSLATE_ENDPOINT = 'https://api.moonshot.ai/v1/cv/translate'
-KIMI_GENERATE_ENDPOINT = 'https://api.moonshot.ai/v1/cv/generate'
 
-MOCK_MODE = os.environ.get('MOCK_MODE', 'false').lower() == 'true'
-
+KIMI_OPTIMIZE_ENDPOINT = os.environ.get('KIMI_OPTIMIZE_ENDPOINT', 'https://api.moonshot.cn/v1/chat/completions')
+KIMI_TRANSLATE_ENDPOINT = os.environ.get('KIMI_TRANSLATE_ENDPOINT', 'https://api.moonshot.cn/v1/chat/completions')
+KIMI_GENERATE_ENDPOINT = os.environ.get('KIMI_GENERATE_ENDPOINT', 'https://api.moonshot.cn/v1/chat/completions')
+MOCK_MODE = os.environ.get('MOCK_MODE', 'true').lower() == 'true'  # Default to mock mode
 
 @app.route("/create-checkout-session", methods=["POST", "OPTIONS"])
 def create_checkout_session():
