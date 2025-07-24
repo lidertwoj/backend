@@ -206,6 +206,7 @@ def get_timestamp():
     """Return current timestamp as integer"""
     return int(time.time())
 
+
 def create_mock_response(file_content, filename, operation, user_uid='mock-user'):
     """Create a mock response for testing without the AI API"""
     timestamp = get_timestamp()
@@ -226,6 +227,83 @@ def create_mock_response(file_content, filename, operation, user_uid='mock-user'
         'filedata': file_content,  # Return the same content
         'fileInfo': mock_file_info
     }
+
+def call_moonshot_api(file_base64, filename, operation, parameters):
+    """
+    Call Moonshot AI API using the chat completions format
+    This is a placeholder implementation - needs to be updated with correct API usage
+    """
+    if not KIMI_API_KEY:
+        raise Exception("No API key provided")
+    
+    # Moonshot AI uses chat completions format
+    headers = {
+        'Authorization': f'Bearer {KIMI_API_KEY}',
+        'Content-Type': 'application/json'
+    }
+    
+    # Create a prompt based on the operation
+    if operation == 'optimize':
+        prompt = f"Please optimize this CV/resume for better presentation and formatting. Style: {parameters.get('style', 'modern')}"
+    elif operation == 'generate':
+        prompt = f"Please generate an improved version of this CV/resume using the {parameters.get('template', 'modern')} template"
+    elif operation == 'translate':
+        prompt = f"Please translate this CV/resume to {parameters.get('language', 'English')}"
+    else:
+        prompt = "Please process this document"
+    
+    # Note: This is a simplified implementation
+    # The actual implementation would need to handle file uploads properly
+    # Moonshot AI might not support direct PDF processing through chat completions
+    payload = {
+        "model": "moonshot-v1-8k",
+        "messages": [
+            {
+                "role": "user", 
+                "content": f"{prompt}\n\nFilename: {filename}\nNote: This is a placeholder implementation."
+            }
+        ],
+        "temperature": 0.3
+    }
+    
+    # Make the API call
+    response = requests.post(
+        KIMI_OPTIMIZE_ENDPOINT,  # Using the same endpoint for all operations
+        headers=headers,
+        json=payload,
+        timeout=30
+    )
+    
+    if response.status_code != 200:
+        raise Exception(f"API error: {response.status_code} - {response.text}")
+    
+    # Parse response
+    api_response = response.json()
+    
+    # Extract the generated content
+    if 'choices' in api_response and len(api_response['choices']) > 0:
+        generated_content = api_response['choices'][0]['message']['content']
+        
+        # Since we can't actually process the PDF, return the original file
+        # In a real implementation, you'd need a different approach for PDF processing
+        timestamp = get_timestamp()
+        file_info = {
+            'path': f'api/{timestamp}/{filename}',
+            'download_url': f'data:application/pdf;base64,{file_base64}',
+            'sha': f'api-sha-{timestamp}',
+            'size': len(file_base64),
+            'firestore_doc_id': f'api-doc-{timestamp}',
+            'ai_response': generated_content  # Include the AI response for reference
+        }
+        
+        return {
+            'success': True,
+            'filename': f"{operation}-{filename}",
+            'filedata': file_base64,  # Return original file for now
+            'fileInfo': file_info
+        }
+    else:
+        raise Exception("Invalid API response format")
 
 @app.route('/api/optimize-cv', methods=['POST', 'OPTIONS'])
 def optimize_cv():
@@ -253,49 +331,18 @@ def optimize_cv():
             response_data = create_mock_response(file_base64, filename, 'optimize')
         else:
             # Forward to AI API
-            print(f"Forwarding to AI API: {KIMI_OPTIMIZE_ENDPOINT}")
+            print(f"Calling Moonshot AI API for optimization")
             
             try:
-                # Prepare API request
-                headers = {
-                    'Authorization': f'Bearer {KIMI_API_KEY}',
-                    'Content-Type': 'application/json'
-                }
-                
-                payload = {
-                    'file': file_base64,
-                    'filename': filename,
-                    'style': style
-                }
-                
-                # Make API request
-                api_response = requests.post(
-                    KIMI_OPTIMIZE_ENDPOINT,
-                    headers=headers,
-                    json=payload,
-                    timeout=30
+                response_data = call_moonshot_api(
+                    file_base64, 
+                    filename, 
+                    'optimize', 
+                    {'style': style}
                 )
-                
-                if api_response.status_code != 200:
-                    print(f"API error: {api_response.status_code} {api_response.text}")
-                    print("Falling back to mock response")
-                    response_data = create_mock_response(file_base64, filename, 'optimize')
-                else:
-                    # Get response data
-                    response_data = api_response.json()
-                    
-                    # If API doesn't return fileInfo, create it
-                    if 'fileInfo' not in response_data:
-                        timestamp = get_timestamp()
-                        response_data['fileInfo'] = {
-                            'path': f'api/{timestamp}/{filename}',
-                            'download_url': f'data:application/pdf;base64,{response_data.get("filedata", file_base64)}',
-                            'sha': f'api-sha-{timestamp}',
-                            'size': len(response_data.get("filedata", file_base64)),
-                            'firestore_doc_id': f'api-doc-{timestamp}'
-                        }
+                print("Successfully received response from Moonshot AI")
             except Exception as api_error:
-                print(f"API request failed: {str(api_error)}")
+                print(f"Moonshot AI request failed: {str(api_error)}")
                 print("Falling back to mock response")
                 response_data = create_mock_response(file_base64, filename, 'optimize')
         
@@ -332,49 +379,18 @@ def generate_cv():
             response_data = create_mock_response(file_base64, filename, 'generate')
         else:
             # Forward to AI API
-            print(f"Forwarding to AI API: {KIMI_GENERATE_ENDPOINT}")
+            print(f"Calling Moonshot AI API for generation")
             
             try:
-                # Prepare API request
-                headers = {
-                    'Authorization': f'Bearer {KIMI_API_KEY}',
-                    'Content-Type': 'application/json'
-                }
-                
-                payload = {
-                    'file': file_base64,
-                    'filename': filename,
-                    'template': template
-                }
-                
-                # Make API request
-                api_response = requests.post(
-                    KIMI_GENERATE_ENDPOINT,
-                    headers=headers,
-                    json=payload,
-                    timeout=30
+                response_data = call_moonshot_api(
+                    file_base64, 
+                    filename, 
+                    'generate', 
+                    {'template': template}
                 )
-                
-                if api_response.status_code != 200:
-                    print(f"API error: {api_response.status_code} {api_response.text}")
-                    print("Falling back to mock response")
-                    response_data = create_mock_response(file_base64, filename, 'generate')
-                else:
-                    # Get response data
-                    response_data = api_response.json()
-                    
-                    # If API doesn't return fileInfo, create it
-                    if 'fileInfo' not in response_data:
-                        timestamp = get_timestamp()
-                        response_data['fileInfo'] = {
-                            'path': f'api/{timestamp}/{filename}',
-                            'download_url': f'data:application/pdf;base64,{response_data.get("filedata", file_base64)}',
-                            'sha': f'api-sha-{timestamp}',
-                            'size': len(response_data.get("filedata", file_base64)),
-                            'firestore_doc_id': f'api-doc-{timestamp}'
-                        }
+                print("Successfully received response from Moonshot AI")
             except Exception as api_error:
-                print(f"API request failed: {str(api_error)}")
+                print(f"Moonshot AI request failed: {str(api_error)}")
                 print("Falling back to mock response")
                 response_data = create_mock_response(file_base64, filename, 'generate')
         
@@ -411,49 +427,18 @@ def translate_cv():
             response_data = create_mock_response(file_base64, filename, 'translate')
         else:
             # Forward to AI API
-            print(f"Forwarding to AI API: {KIMI_TRANSLATE_ENDPOINT}")
+            print(f"Calling Moonshot AI API for translation")
             
             try:
-                # Prepare API request
-                headers = {
-                    'Authorization': f'Bearer {KIMI_API_KEY}',
-                    'Content-Type': 'application/json'
-                }
-                
-                payload = {
-                    'file': file_base64,
-                    'filename': filename,
-                    'language': language
-                }
-                
-                # Make API request
-                api_response = requests.post(
-                    KIMI_TRANSLATE_ENDPOINT,
-                    headers=headers,
-                    json=payload,
-                    timeout=30
+                response_data = call_moonshot_api(
+                    file_base64, 
+                    filename, 
+                    'translate', 
+                    {'language': language}
                 )
-                
-                if api_response.status_code != 200:
-                    print(f"API error: {api_response.status_code} {api_response.text}")
-                    print("Falling back to mock response")
-                    response_data = create_mock_response(file_base64, filename, 'translate')
-                else:
-                    # Get response data
-                    response_data = api_response.json()
-                    
-                    # If API doesn't return fileInfo, create it
-                    if 'fileInfo' not in response_data:
-                        timestamp = get_timestamp()
-                        response_data['fileInfo'] = {
-                            'path': f'api/{timestamp}/{filename}',
-                            'download_url': f'data:application/pdf;base64,{response_data.get("filedata", file_base64)}',
-                            'sha': f'api-sha-{timestamp}',
-                            'size': len(response_data.get("filedata", file_base64)),
-                            'firestore_doc_id': f'api-doc-{timestamp}'
-                        }
+                print("Successfully received response from Moonshot AI")
             except Exception as api_error:
-                print(f"API request failed: {str(api_error)}")
+                print(f"Moonshot AI request failed: {str(api_error)}")
                 print("Falling back to mock response")
                 response_data = create_mock_response(file_base64, filename, 'translate')
         
@@ -462,65 +447,6 @@ def translate_cv():
         
     except Exception as e:
         print(f"Error in translate_cv: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/process_pdf', methods=['POST', 'OPTIONS'])
-def process_pdf():
-    print("Received process_pdf request")
-    
-    try:
-        # Get JSON data from request
-        data = request.get_json()
-        if not data:
-            print("Error: No JSON data in request")
-            return jsonify({'error': 'No JSON data in request'}), 400
-            
-        if 'filedata' not in data or 'filename' not in data:
-            print("Error: Missing required fields in request data")
-            return jsonify({'error': 'Missing file data or filename'}), 400
-        
-        # Extract data from request
-        filename = data['filename']
-        file_content = data['filedata']
-        operation = data.get('operation', 'optimize')  # Default to optimize
-        user_uid = data.get('userUID', 'mock-user')
-        
-        print(f"Processing file: {filename}, operation: {operation}, user: {user_uid}")
-        
-        # Decode base64 content
-        try:
-            # Handle both with and without data URL prefix
-            if ',' in file_content:
-                file_content = file_content.split(',', 1)[1]
-            file_bytes = base64.b64decode(file_content)
-            print(f"Successfully decoded base64 content, size: {len(file_bytes)} bytes")
-        except Exception as e:
-            print(f"Error decoding base64: {str(e)}")
-            return jsonify({'error': f'Invalid base64 encoding: {str(e)}'}), 400
-        
-        # Create timestamp for unique IDs
-        timestamp = get_timestamp()
-        
-        # Create mock file info
-        mock_file_info = {
-            'path': f'{user_uid}/{operation}/{filename}',
-            'download_url': f'https://example.com/download/{operation}/{filename}',
-            'sha': f'mock-sha-{timestamp}',
-            'size': len(file_bytes),
-            'firestore_doc_id': f'mock-doc-{timestamp}'
-        }
-        
-        # Return mock response with file info
-        response_data = {
-            'success': True,
-            'filename': f"{operation}-{filename}",
-            'filedata': file_content,  # Return the same content
-            'fileInfo': mock_file_info
-        }
-        print("Sending successful response")
-        return jsonify(response_data)
-    except Exception as e:
-        print(f"Error processing PDF: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -959,11 +885,18 @@ def status():
         'status': 'running',
         'mock_mode': MOCK_MODE,
         'has_api_key': bool(KIMI_API_KEY),
+        'api_key_preview': KIMI_API_KEY[:10] + '...' if KIMI_API_KEY else None,
         'endpoints': {
             'optimize': KIMI_OPTIMIZE_ENDPOINT,
             'generate': KIMI_GENERATE_ENDPOINT,
             'translate': KIMI_TRANSLATE_ENDPOINT
-        }
+        },
+        'note': 'Currently using Moonshot AI chat completions API. PDF processing is simulated.',
+        'recommendations': [
+            'Run test_moonshot_api.py to verify correct endpoints',
+            'Set MOCK_MODE=false to enable real API calls',
+            'Ensure KIMI_API_KEY is set in environment variables'
+        ]
     })
 
 
